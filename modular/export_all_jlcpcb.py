@@ -61,6 +61,17 @@ LCSC_MAP = {
     "BUS_IN": "C49661",
     "ADDR 0x20-27": "C410099",
     "ADDR 0x40-47": "C410099",
+    "TLP281-4": "C105995",
+    "ADS1115": "C37593",
+    "BZT52C3V3": "C80673",
+    "3.3k": "C26010",
+    "22k 1%": "C17560",
+    "10k 1%": "C17414",
+    "18pF": "C1798",
+    "100nF 50V": "C49678",
+    "COM_GND": "C395891",
+    "DI1-DI8": "C395897",
+    "DI9-12_AI1-4": "C395897",
 }
 
 
@@ -118,5 +129,5 @@ def export_board(subdir, name):
 
 
 if __name__ == "__main__":
-    for sub, nm in [("brain", "keavy_brain"), ("relay_16ch", "keavy_relay16"), ("dimmer_6ch", "keavy_dimmer6")]:
+    for sub, nm in [("brain", "keavy_brain"), ("relay_16ch", "keavy_relay16"), ("dimmer_6ch", "keavy_dimmer6"), ("input_12a4", "keavy_input12a4")]:
         export_board(sub, nm)

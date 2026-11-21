@@ -43,10 +43,18 @@ i2c:
   frequency: 100kHz
 
 # Module 1: KEAVY-RELAY16 (DIP SW1 = OFF-OFF-OFF -> 0x20)
-# To chain a 2nd Relay16 module, set SW1 = ON-OFF-OFF -> address: 0x21
+# Module 3: KEAVY-INPUT12A4 (DIP SW1 = OFF-OFF-ON  -> 0x24, 12-CH Opto-Isolated Digital Inputs + BUS_INT)
 mcp23017:
   - id: relay_mod1
     address: 0x20
+  - id: input_mod1
+    address: 0x24
+
+# Module 3 (Analog Stage): KEAVY-INPUT12A4 16-bit 4-CH 0-10V ADC (TI ADS1115 at 0x48)
+ads1115:
+  - id: adc_mod1
+    address: 0x48
+    continuous_mode: off
 
 # Module 2: KEAVY-DIMMER6 (DIP SW1 = OFF-OFF-OFF -> 0x40)
 # To chain a 2nd Dimmer6 module, set SW1 = ON-OFF-OFF -> address: 0x41
@@ -90,3 +98,26 @@ switch:
   - { platform: gpio, name: "Relay 14", pin: { mcp23xxx: relay_mod1, number: 5,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
   - { platform: gpio, name: "Relay 15", pin: { mcp23xxx: relay_mod1, number: 6,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
   - { platform: gpio, name: "Relay 16", pin: { mcp23xxx: relay_mod1, number: 7,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+
+# 12-Channel Opto-Isolated Digital Inputs on KEAVY-INPUT12A4 (0x24, Active-Low w/ internal pull-up)
+# GPB0..7 (8..15) = DI1..DI8 | GPA0..3 (0..3) = DI9..DI12
+binary_sensor:
+  - { platform: gpio, name: "Digital Input 1",  pin: { mcp23xxx: input_mod1, number: 8,  mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 2",  pin: { mcp23xxx: input_mod1, number: 9,  mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 3",  pin: { mcp23xxx: input_mod1, number: 10, mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 4",  pin: { mcp23xxx: input_mod1, number: 11, mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 5",  pin: { mcp23xxx: input_mod1, number: 12, mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 6",  pin: { mcp23xxx: input_mod1, number: 13, mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 7",  pin: { mcp23xxx: input_mod1, number: 14, mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 8",  pin: { mcp23xxx: input_mod1, number: 15, mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 9",  pin: { mcp23xxx: input_mod1, number: 0,  mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 10", pin: { mcp23xxx: input_mod1, number: 1,  mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 11", pin: { mcp23xxx: input_mod1, number: 2,  mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+  - { platform: gpio, name: "Digital Input 12", pin: { mcp23xxx: input_mod1, number: 3,  mode: INPUT_PULLUP, inverted: true }, filters: [{ delayed_on_off: 20ms }] }
+
+# 4-Channel 16-Bit 0-10V Analog Inputs on KEAVY-INPUT12A4 (ADS1115 0x48, 22k/10k divider -> multiply by 3.2)
+sensor:
+  - { platform: ads1115, ads1115_id: adc_mod1, multiplexer: 'A0_GND', gain: 4.096, name: "Analog Input 1 (0-10V)", unit_of_measurement: "V", update_interval: 2s, filters: [{ multiply: 3.2 }] }
+  - { platform: ads1115, ads1115_id: adc_mod1, multiplexer: 'A1_GND', gain: 4.096, name: "Analog Input 2 (0-10V)", unit_of_measurement: "V", update_interval: 2s, filters: [{ multiply: 3.2 }] }
+  - { platform: ads1115, ads1115_id: adc_mod1, multiplexer: 'A2_GND', gain: 4.096, name: "Analog Input 3 (0-10V)", unit_of_measurement: "V", update_interval: 2s, filters: [{ multiply: 3.2 }] }
+  - { platform: ads1115, ads1115_id: adc_mod1, multiplexer: 'A3_GND', gain: 4.096, name: "Analog Input 4 (0-10V)", unit_of_measurement: "V", update_interval: 2s, filters: [{ multiply: 3.2 }] }
