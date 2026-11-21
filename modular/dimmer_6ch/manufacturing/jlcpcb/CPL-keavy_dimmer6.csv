@@ -1,6 +1,8 @@
 Designator,Val,Package,Mid X,Mid Y,Rotation,Layer
 C1,470uF 35V,CP_Radial_D10.0mm_P5.00mm,56.50,-8.50,0.0,Top
 C2,10uF 50V,C_1206_3216Metric,72.00,-16.50,0.0,Top
+C_ISO1,100nF,C_0805_2012Metric,65.00,-22.00,0.0,Top
+C_ISO2,100nF,C_0805_2012Metric,60.50,-35.00,0.0,Top
 C_L1,10uF,C_0805_2012Metric,69.20,-24.80,180.0,Top
 C_L2,10uF,C_0805_2012Metric,66.00,-35.80,0.0,Top
 C_PWM,100nF,C_0805_2012Metric,39.00,-27.50,270.0,Top

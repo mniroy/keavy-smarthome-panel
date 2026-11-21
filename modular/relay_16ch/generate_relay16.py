@@ -64,6 +64,10 @@ def build_board():
     d_tvs = load_fp(f"{KICAD_FP_DIR}/Diode_SMD.pretty", "D_SMB", "D_TVS", "SMBJ28A", 33.5, 9.0, ref_offset=(0.0, -3.1), val_offset=(0.0, 3.1))
     set_pad_net(d_tvs, "1", net_24v_bus); set_pad_net(d_tvs, "2", net_gnd_iso); board.Add(d_tvs)
 
+    # Rule #9: High-frequency ceramic EMI bypass cap right at 24V input
+    c1_hf = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C1_HF", "100nF 50V", 38.5, 9.0, angle=90.0, show_val=False, ref_offset=(0.0, -2.5))
+    set_pad_net(c1_hf, "1", net_24v_bus); set_pad_net(c1_hf, "2", net_gnd_iso); board.Add(c1_hf)
+
     c1 = load_fp(f"{KICAD_FP_DIR}/Capacitor_THT.pretty", "CP_Radial_D6.3mm_P2.50mm", "C1", "100uF 35V", 43.0, 8.5, ref_offset=(1.25, -4.5), val_offset=(1.25, 4.5))
     set_pad_net(c1, "1", net_24v_bus); set_pad_net(c1, "2", net_gnd_iso); board.Add(c1)
 
@@ -117,6 +121,15 @@ def build_board():
     set_pad_net(u_iso, "7", net_sda_iso)
     set_pad_net(u_iso, "8", net_3v3_iso)
     board.Add(u_iso)
+
+    # Datasheet Mandatory 100nF Ceramic Bypass Caps directly on ADuM1250ARZ Side 1 (Bus) & Side 2 (Iso)
+    # Note: U_ISO angle=-90 -> Top: Pin 4(GND_BUS) left x=34.6, Pin 1(+3V3_BUS) right x=38.4
+    #                          Bottom: Pin 5(GND_ISO) left x=34.6, Pin 8(+3V3_ISO) right x=38.4
+    c_iso1 = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_ISO1", "100nF", 31.2, 23.9, angle=180.0, show_val=False, ref_offset=(-3.6, 0.0))
+    set_pad_net(c_iso1, "1", net_gnd_bus); set_pad_net(c_iso1, "2", net_3v3_bus); board.Add(c_iso1)
+
+    c_iso2 = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_ISO2", "100nF", 41.2, 28.9, angle=90.0, show_ref=False, show_val=False)
+    set_pad_net(c_iso2, "1", net_3v3_iso); set_pad_net(c_iso2, "2", net_gnd_iso); board.Add(c_iso2)
 
     r_isda = load_fp(f"{KICAD_FP_DIR}/Resistor_SMD.pretty", "R_0805_2012Metric", "R_ISDA", "4.7k", 41.0, 33.5, angle=180.0, show_ref=False, show_val=False)
     set_pad_net(r_isda, "1", net_3v3_iso); set_pad_net(r_isda, "2", net_sda_iso); board.Add(r_isda)
@@ -195,6 +208,16 @@ def build_board():
         ip = iso_p[idx_p]
         add_via(board, ip[0], ty[t_key], snet, dia_mm=0.60, drill_mm=0.30)
         add_track(board, ip[0], ty[t_key], ip[0], ip[1], 0.22, pcbnew.F_Cu, snet)
+
+    # Route C_ISO1 (100nF Bus Side) & C_ISO2 (100nF Iso Side) right at U_ISO pads (zero crossings!)
+    ci1_p1, ci1_p2 = pad_xy(c_iso1, "1"), pad_xy(c_iso1, "2")
+    add_track(board, ci1_p1[0], ci1_p1[1], iso_p[3][0], iso_p[3][1], 0.25, pcbnew.F_Cu, net_gnd_bus)
+    add_via(board, ci1_p2[0], ty["3v3"], net_3v3_bus, dia_mm=0.60, drill_mm=0.30)
+    add_track(board, ci1_p2[0], ci1_p2[1], ci1_p2[0], ty["3v3"], 0.25, pcbnew.F_Cu, net_3v3_bus)
+
+    ci2_p1, ci2_p2 = pad_xy(c_iso2, "1"), pad_xy(c_iso2, "2")
+    add_route(board, [ci2_p1, (ci2_p1[0], 30.2), (pad_xy(r_isda, "1")[0], 30.2)], 0.25, pcbnew.F_Cu, net_3v3_iso, chamfer=False)
+    add_route(board, [ci2_p2, (ci2_p2[0], 26.2), (iso_p[4][0], 26.2), iso_p[4]], 0.25, pcbnew.F_Cu, net_gnd_iso, chamfer=False)
 
     # Isolated Power Routing: B0505S-1W (3=GND_ISO, 4=+5V_ISO) -> C_L1 -> U_LDO -> C_L2 -> +3V3_ISO
     ul_gnd, ul_out, ul_tab, ul_in = pad_xy(u_ldo, "1"), pad_xy(u_ldo, "2"), pad_xy(u_ldo, "2", "max_x"), pad_xy(u_ldo, "3")
@@ -306,13 +329,31 @@ def build_board():
     # +24V_BUS Feeder
     dtvs_p1, dtvs_p2 = pad_xy(d_tvs, "1"), pad_xy(d_tvs, "2")
     c1_p1 = pad_xy(c1, "1")
+    c1hf_p1, c1hf_p2 = pad_xy(c1_hf, "1"), pad_xy(c1_hf, "2")
     add_route(board, [j1_p1, (j1_p1[0], 12.8), (dtvs_p1[0], 12.8), dtvs_p1], 1.5, pcbnew.F_Cu, net_24v_bus)
     add_route(board, [(dtvs_p1[0], 12.8), (c1_p1[0], 12.8), c1_p1], 1.5, pcbnew.F_Cu, net_24v_bus)
+    add_track(board, c1hf_p1[0], c1hf_p1[1], c1hf_p1[0], 12.8, 0.5, pcbnew.F_Cu, net_24v_bus)
+    add_gnd_via_near(board, c1hf_p2[0], c1hf_p2[1], 0.0, -1.4, net_gnd_iso)
     add_gnd_via_near(board, dtvs_p2[0], dtvs_p2[1], 1.8, 0.0, net_gnd_iso)
     add_route(board, [(j1_p1[0], 12.8), (13.0, 12.8), (13.0, rl_top_y), j2_p1], 1.5, pcbnew.F_Cu, net_24v_bus)
     add_route(board, [(13.0, rl_top_y), (pad_xy(rl_parts[-1], "1")[0], rl_top_y)], 1.0, pcbnew.F_Cu, net_24v_bus)
 
-    # Isolated B.Cu GND_ISO Plane (clearance_mm=0.6 keeps clean isolation barrier from Bus Domain!)
+    # Rule #11: True 2500 Vrms Galvanic Isolation Moat — block GND_ISO pour from Bus Domain & under isolation barrier!
+    add_zone_keepout(board, [(0.0, 24.0), (12.5, 24.0), (12.5, 48.0), (0.0, 48.0)], layers=(pcbnew.B_Cu,))
+    add_zone_keepout(board, [(BOARD_W - 12.5, 24.0), (BOARD_W, 24.0), (BOARD_W, 48.0), (BOARD_W - 12.5, 48.0)], layers=(pcbnew.B_Cu,))
+    add_zone_keepout(board, [(8.0, 16.0), (BOARD_W - 8.0, 16.0), (BOARD_W - 8.0, 23.0), (8.0, 23.0)], layers=(pcbnew.B_Cu,))
+    add_zone_keepout(board, [(14.5, 22.5), (21.3, 22.5), (21.3, 27.5), (14.5, 27.5)], layers=(pcbnew.B_Cu,))
+    add_zone_keepout(board, [(29.0, 22.5), (39.5, 22.5), (39.5, 27.4), (29.0, 27.4)], layers=(pcbnew.B_Cu,))
+
+    # Bridge top & bottom GND_ISO zones on F.Cu (cleanly over FR4 dielectric at x=74.5, away from Bus pads)
+    add_via(board, 74.5, 14.5, net_gnd_iso, dia_mm=0.9, drill_mm=0.45)
+    add_via(board, 74.5, 24.5, net_gnd_iso, dia_mm=0.9, drill_mm=0.45)
+    add_track(board, 74.5, 14.5, 74.5, 24.5, 1.5, pcbnew.F_Cu, net_gnd_iso)
+
+    # Rule #4: Perimeter Ground Stitching Vias (Isolated Domain only, skipping Bus connectors)
+    add_perimeter_gnd_stitching(board, BOARD_W, net_gnd_iso, skip_boxes=[(0.0, 15.0, 15.0, 50.0), (BOARD_W - 15.0, 15.0, BOARD_W, 50.0)])
+
+    # Isolated B.Cu GND_ISO Plane
     add_zone(board, net_gnd_iso, pcbnew.B_Cu, [(1.0, 1.0), (BOARD_W - 1.0, 1.0), (BOARD_W - 1.0, BOARD_H - 1.0), (1.0, BOARD_H - 1.0)], priority=0, clearance_mm=0.4)
     filler = pcbnew.ZONE_FILLER(board)
     filler.Fill(board.Zones())

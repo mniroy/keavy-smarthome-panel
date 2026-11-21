@@ -251,6 +251,99 @@ def add_keepout_zone(board, points_mm):
     return zone
 
 
+def add_zone_keepout(board, points_mm, layers=(pcbnew.F_Cu, pcbnew.B_Cu)):
+    """Keepout rule area that blocks copper zone pours only (for galvanic isolation moats & bus domain barriers)."""
+    zone = pcbnew.ZONE(board)
+    zone.SetIsRuleArea(True)
+    zone.SetDoNotAllowTracks(False)
+    zone.SetDoNotAllowVias(False)
+    zone.SetDoNotAllowPads(False)
+    zone.SetDoNotAllowFootprints(False)
+    zone.SetDoNotAllowZoneFills(True)
+    lset = pcbnew.LSET()
+    for lyr in layers:
+        lset.AddLayer(lyr)
+    zone.SetLayerSet(lset)
+
+    outline = zone.Outline()
+    outline.NewOutline()
+    for x, y in points_mm:
+        outline.Append(mm(x), mm(y))
+    board.Add(zone)
+    return zone
+
+
+def is_clear_for_via(board, vx, vy, min_dist_mm=1.6, skip_boxes=()):
+    """Check that a candidate stitching via at (vx, vy) clears all pads, tracks, vias, and excluded boxes."""
+    for x1, y1, x2, y2 in skip_boxes:
+        if x1 <= vx <= x2 and y1 <= vy <= y2:
+            return False
+    for fp in board.GetFootprints():
+        for pad in fp.Pads():
+            pos = pad.GetPosition()
+            px, py = pcbnew.ToMM(pos.x), pcbnew.ToMM(pos.y)
+            sz = pad.GetSize()
+            rad = max(pcbnew.ToMM(sz.x), pcbnew.ToMM(sz.y)) * 0.5
+            if math.hypot(vx - px, vy - py) < rad + min_dist_mm:
+                return False
+    for trk in board.GetTracks():
+        if isinstance(trk, pcbnew.PCB_VIA):
+            pos = trk.GetPosition()
+            px, py = pcbnew.ToMM(pos.x), pcbnew.ToMM(pos.y)
+            if math.hypot(vx - px, vy - py) < pcbnew.ToMM(trk.GetWidth(pcbnew.F_Cu)) * 0.5 + min_dist_mm:
+                return False
+        else:
+            s, e = trk.GetStart(), trk.GetEnd()
+            x1, y1 = pcbnew.ToMM(s.x), pcbnew.ToMM(s.y)
+            x2, y2 = pcbnew.ToMM(e.x), pcbnew.ToMM(e.y)
+            dx, dy = x2 - x1, y2 - y1
+            l2 = dx * dx + dy * dy
+            if l2 < 1e-6:
+                d = math.hypot(vx - x1, vy - y1)
+            else:
+                t = max(0.0, min(1.0, ((vx - x1) * dx + (vy - y1) * dy) / l2))
+                d = math.hypot(vx - (x1 + t * dx), vy - (y1 + t * dy))
+            if d < pcbnew.ToMM(trk.GetWidth()) * 0.5 + min_dist_mm:
+                return False
+    return True
+
+
+def add_perimeter_gnd_stitching(board, board_w, net_gnd, board_h=BOARD_H, pitch=10.0, margin=2.2, skip_boxes=()):
+    """
+    Predictable Designs Rule #4: Add perimeter ground stitching vias along board edges
+    connected by a 0.4mm F.Cu GND guard ring so every via ties F.Cu & B.Cu together
+    (forming a Faraday cage with ZERO dangling vias).
+    """
+    def _seg_clear(x1, y1, x2, y2, min_d=0.6):
+        steps = max(4, int(math.hypot(x2 - x1, y2 - y1) / 1.0))
+        for k in range(1, steps):
+            mx = x1 + (x2 - x1) * k / steps
+            my = y1 + (y2 - y1) * k / steps
+            if not is_clear_for_via(board, mx, my, min_dist_mm=min_d, skip_boxes=skip_boxes):
+                return False
+        return True
+
+    edges = [
+        [(round(x, 2), margin) for x in [12.0 + i * pitch for i in range(int((board_w - 24.0) / pitch) + 1)]],
+        [(round(x, 2), board_h - margin) for x in [12.0 + i * pitch for i in range(int((board_w - 24.0) / pitch) + 1)]],
+        [(margin, round(y, 2)) for y in [12.0 + i * pitch for i in range(int((board_h - 24.0) / pitch) + 1)]],
+        [(board_w - margin, round(y, 2)) for y in [12.0 + i * pitch for i in range(int((board_h - 24.0) / pitch) + 1)]],
+    ]
+    placed = 0
+    for edge in edges:
+        valid = [p for p in edge if is_clear_for_via(board, p[0], p[1], min_dist_mm=1.35, skip_boxes=skip_boxes)]
+        linked = set()
+        for a, b in zip(valid, valid[1:]):
+            if math.hypot(b[0] - a[0], b[1] - a[1]) <= pitch * 1.5 and _seg_clear(a[0], a[1], b[0], b[1], min_d=0.75):
+                add_track(board, a[0], a[1], b[0], b[1], 0.4, pcbnew.F_Cu, net_gnd)
+                linked.add(a)
+                linked.add(b)
+        for vx, vy in sorted(linked):
+            add_via(board, vx, vy, net_gnd, dia_mm=0.75, drill_mm=0.35)
+            placed += 1
+    return placed
+
+
 def add_logo_from_png(board, png_path, x0, y0, target_width_mm=18.0):
     im = Image.open(png_path).convert("RGBA")
     orig_w, orig_h = im.size

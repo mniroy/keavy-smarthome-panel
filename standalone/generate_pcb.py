@@ -250,6 +250,63 @@ def add_keepout_zone(board, points_mm):
     return zone
 
 
+def _is_clear_for_via(board, vx, vy, min_dist_mm=1.35, skip_boxes=()):
+    for x1, y1, x2, y2 in skip_boxes:
+        if x1 <= vx <= x2 and y1 <= vy <= y2:
+            return False
+    for fp in board.GetFootprints():
+        for pad in fp.Pads():
+            pos = pad.GetPosition()
+            px, py = pcbnew.ToMM(pos.x), pcbnew.ToMM(pos.y)
+            sz = pad.GetSize()
+            rad = max(pcbnew.ToMM(sz.x), pcbnew.ToMM(sz.y)) * 0.5
+            if math.hypot(vx - px, vy - py) < rad + min_dist_mm:
+                return False
+    for trk in board.GetTracks():
+        if isinstance(trk, pcbnew.PCB_VIA):
+            pos = trk.GetPosition()
+            if math.hypot(vx - pcbnew.ToMM(pos.x), vy - pcbnew.ToMM(pos.y)) < pcbnew.ToMM(trk.GetWidth(pcbnew.F_Cu)) * 0.5 + min_dist_mm:
+                return False
+        else:
+            s, e = trk.GetStart(), trk.GetEnd()
+            x1, y1, x2, y2 = pcbnew.ToMM(s.x), pcbnew.ToMM(s.y), pcbnew.ToMM(e.x), pcbnew.ToMM(e.y)
+            dx, dy = x2 - x1, y2 - y1
+            l2 = dx * dx + dy * dy
+            t = 0.0 if l2 < 1e-6 else max(0.0, min(1.0, ((vx - x1) * dx + (vy - y1) * dy) / l2))
+            if math.hypot(vx - (x1 + t * dx), vy - (y1 + t * dy)) < pcbnew.ToMM(trk.GetWidth()) * 0.5 + min_dist_mm:
+                return False
+    return True
+
+
+def add_perimeter_gnd_stitching(board, net_gnd, pitch=10.0, margin=2.2, skip_boxes=()):
+    """Predictable Designs Rule #4: Perimeter Faraday-cage ground stitching vias linked by F.Cu guard ring."""
+    def _seg_clear(x1, y1, x2, y2, min_d=0.75):
+        steps = max(4, int(math.hypot(x2 - x1, y2 - y1) / 1.0))
+        for k in range(1, steps):
+            mx = x1 + (x2 - x1) * k / steps
+            my = y1 + (y2 - y1) * k / steps
+            if not _is_clear_for_via(board, mx, my, min_dist_mm=min_d, skip_boxes=skip_boxes):
+                return False
+        return True
+
+    edges = [
+        [(round(12.0 + i * pitch, 2), margin) for i in range(int((BOARD_W - 24.0) / pitch) + 1)],
+        [(round(12.0 + i * pitch, 2), BOARD_H - margin) for i in range(int((BOARD_W - 24.0) / pitch) + 1)],
+        [(margin, round(12.0 + i * pitch, 2)) for i in range(int((BOARD_H - 24.0) / pitch) + 1)],
+        [(BOARD_W - margin, round(12.0 + i * pitch, 2)) for i in range(int((BOARD_H - 24.0) / pitch) + 1)],
+    ]
+    for edge in edges:
+        valid = [p for p in edge if _is_clear_for_via(board, p[0], p[1], min_dist_mm=1.35, skip_boxes=skip_boxes)]
+        linked = set()
+        for a, b in zip(valid, valid[1:]):
+            if math.hypot(b[0] - a[0], b[1] - a[1]) <= pitch * 1.5 and _seg_clear(a[0], a[1], b[0], b[1]):
+                add_track(board, a[0], a[1], b[0], b[1], 0.4, pcbnew.F_Cu, net_gnd)
+                linked.add(a)
+                linked.add(b)
+        for vx, vy in sorted(linked):
+            add_via(board, vx, vy, net_gnd, dia_mm=0.75, drill_mm=0.35)
+
+
 def add_logo_from_png(board, png_path, x0, y0, target_width_mm=22.0):
     """Convert white/alpha logo.png into crisp filled silkscreen rectangles on F.SilkS."""
     im = Image.open(png_path).convert("RGBA")
@@ -426,6 +483,16 @@ def build_board():
     set_pad_net(y1, "3", net_xo)
     board.Add(y1)
 
+    # Rule #10: 25MHz Crystal Load Capacitors (18pF) + W5500 Local 100nF Decoupling
+    c_y1 = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_Y1", "18pF", 13.2, 53.1, angle=180.0, ref_offset=(-3.2, -0.5), val_offset=(-3.2, 0.8), text_size=0.8, text_thick=0.13)
+    set_pad_net(c_y1, "1", net_xi); set_pad_net(c_y1, "2", net_gnd); board.Add(c_y1)
+
+    c_y2 = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_Y2", "18pF", 13.2, 47.0, angle=180.0, ref_offset=(-3.2, -0.5), val_offset=(-3.2, 0.8), text_size=0.8, text_thick=0.13)
+    set_pad_net(c_y2, "1", net_xo); set_pad_net(c_y2, "2", net_gnd); board.Add(c_y2)
+
+    c_w55 = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_W55", "100nF", 26.8, 43.8, angle=0.0, ref_offset=(0.0, -1.8), val_offset=(0.0, 1.8), text_size=0.8, text_thick=0.13)
+    set_pad_net(c_w55, "1", net_3v3_eth); set_pad_net(c_w55, "2", net_gnd); board.Add(c_w55)
+
     r_exres = load_fp(
         f"{KICAD_FP_DIR}/Resistor_SMD.pretty",
         "R_0805_2012Metric",
@@ -494,6 +561,10 @@ def build_board():
     add_silk_text(board, "-GND", j1_p2[0], 15.2, size_mm=0.9, thickness_mm=0.18, bold=True)
     add_silk_text(board, "+", j1_p1[0], 10.5, size_mm=1.4, thickness_mm=0.25, bold=True, layer=pcbnew.B_SilkS)
     add_silk_text(board, "-", j1_p2[0], 10.5, size_mm=1.4, thickness_mm=0.25, bold=True, layer=pcbnew.B_SilkS)
+
+    # Rule #9: High-frequency 24V Input EMI Filter Cap right at J1
+    c_emi_in = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_EMI", "100nF 50V", 49.5 + S, 16.8, show_val=False, ref_offset=(-3.2, 0.0), text_size=0.8, text_thick=0.13)
+    set_pad_net(c_emi_in, "1", net_24v_in); set_pad_net(c_emi_in, "2", net_gnd); board.Add(c_emi_in)
 
     f1 = load_fp(
         f"{KICAD_FP_DIR}/Fuse.pretty",
@@ -598,7 +669,7 @@ def build_board():
         f"{KICAD_FP_DIR}/Package_SO.pretty",
         "SOIC-8_3.9x4.9mm_P1.27mm",
         "U1", "XL1509-5.0", 54.0 + S, 23.5,
-        ref_offset=(0.0, -3.7), val_offset=(0.0, -5.0),
+        ref_offset=(0.0, -3.5), val_offset=(7.0, -7.0),
         text_size=0.8, text_thick=0.13
     )
     set_pad_net(u1, "1", net_24v_bus)
@@ -606,6 +677,10 @@ def build_board():
     set_pad_net(u1, "3", net_5v)
     set_pad_net(u1, ["4", "5", "6", "7", "8"], net_gnd)
     board.Add(u1)
+
+    # Rule #8: Tight Switching Regulator Hot-Loop Ceramic Bypass (100nF 50V right at U1 VIN/GND, zero vias!)
+    c_buck_in = load_fp(f"{KICAD_FP_DIR}/Capacitor_SMD.pretty", "C_0805_2012Metric", "C_BIN", "100nF 50V", 54.0 + S, 17.6, show_val=False, ref_offset=(0.0, -1.8), text_size=0.8, text_thick=0.13)
+    set_pad_net(c_buck_in, "1", net_24v_bus); set_pad_net(c_buck_in, "2", net_gnd); board.Add(c_buck_in)
 
     d_buck = load_fp(
         f"{KICAD_FP_DIR}/Diode_SMD.pretty",
@@ -899,6 +974,19 @@ def build_board():
     add_gnd_via_near(board, pad_xy(y1, "2")[0], pad_xy(y1, "2")[1], 0.0, 1.4, net_gnd)
     add_gnd_via_near(board, pad_xy(y1, "4")[0], pad_xy(y1, "4")[1], -1.5, 0.0, net_gnd)
 
+    # Rule #10: Crystal load capacitors C_Y1 (18pF) & C_Y2 (18pF) + local W5500 decoupling C_W55 (100nF)
+    cy1_p1, cy1_p2 = pad_xy(c_y1, "1"), pad_xy(c_y1, "2")
+    cy2_p1, cy2_p2 = pad_xy(c_y2, "1"), pad_xy(c_y2, "2")
+    add_route(board, [cy1_p1, (y1_xi[0], cy1_p1[1]), y1_xi], 0.22, pcbnew.F_Cu, net_xi)
+    add_gnd_via_near(board, cy1_p2[0], cy1_p2[1], -1.4, 0.0, net_gnd)
+    add_route(board, [cy2_p1, (y1_xo[0], cy2_p1[1]), y1_xo], 0.22, pcbnew.F_Cu, net_xo)
+    add_gnd_via_near(board, cy2_p2[0], cy2_p2[1], -1.4, 0.0, net_gnd)
+
+    cw55_p1, cw55_p2 = pad_xy(c_w55, "1"), pad_xy(c_w55, "2")
+    add_via(board, cw55_p1[0], cw55_p1[1], net_3v3_eth, dia_mm=0.65, drill_mm=0.35)
+    add_route(board, [cw55_p1, (21.2, cw55_p1[1])], 0.35, pcbnew.B_Cu, net_3v3_eth)
+    add_gnd_via_near(board, cw55_p2[0], cw55_p2[1], 1.5, 0.0, net_gnd)
+
     add_route(board, [pad_xy(u3, "10"), (8.0, 40.25), (8.0, 38.5), pad_xy(r_exres, "1")], 0.22, pcbnew.F_Cu, net_exres)
     add_gnd_via_near(board, pad_xy(r_exres, "2")[0], pad_xy(r_exres, "2")[1], -1.5, 0.0, net_gnd)
     add_route(board, [pad_xy(u3, "22"), (pad_xy(u3, "22")[0], 44.9), (7.95, 44.9), pad_xy(c_1v2, "1")], 0.22, pcbnew.F_Cu, net_1v2o)
@@ -990,7 +1078,15 @@ def build_board():
         add_via(board, vx, vy, snet, dia_mm=0.65, drill_mm=0.35)
         add_route(board, [(vx, vy), (vx, ep[1]), ep], 0.22, pcbnew.B_Cu, snet)
 
+    # Rule #4: Ground return vias adjacent to high-speed W5500 SPI layer-change vias (tied to F.Cu GND pour)
+    for gx, gy in [(32.5, 29.0), (34.8, 39.2)]:
+        if _is_clear_for_via(board, gx, gy, min_dist_mm=1.25):
+            add_via(board, gx, gy, net_gnd, dia_mm=0.70, drill_mm=0.35)
+
     # 9. Power Input & Buck Routing — IDENTICAL TO 6-CH DIMMER
+    cemi_p1, cemi_p2 = pad_xy(c_emi_in, "1"), pad_xy(c_emi_in, "2")
+    add_route(board, [j1_p1, (j1_p1[0], cemi_p1[1]), cemi_p1], 0.6, pcbnew.F_Cu, net_24v_in)
+    add_gnd_via_near(board, cemi_p2[0], cemi_p2[1], 1.4, 0.0, net_gnd)
     f1_p1_top = pad_xy(f1, "1", "min_y")
     f1_p1_bot = pad_xy(f1, "1", "max_y")
     f1_p2_top = pad_xy(f1, "2", "min_y")
@@ -1040,6 +1136,10 @@ def build_board():
     u1_p8 = pad_xy(u1, "8")
     add_route(board, [(83.0 + S, 13.5), (83.0 + S, 20.0), (44.5 + S, 20.0), c4_p1], 1.5, pcbnew.F_Cu, net_24v_bus)
     add_route(board, [c4_p1, (c4_p1[0], u1_p1[1]), u1_p1], 1.0, pcbnew.F_Cu, net_24v_bus)
+    # Rule #8: Connect C_BIN (100nF 50V) directly at U1 VIN & GND (shortest hot loop!)
+    cbin_p1, cbin_p2 = pad_xy(c_buck_in, "1"), pad_xy(c_buck_in, "2")
+    add_route(board, [cbin_p1, (cbin_p1[0], 20.0)], 0.5, pcbnew.F_Cu, net_24v_bus)
+    add_gnd_via_near(board, cbin_p2[0], cbin_p2[1], 1.5, 0.0, net_gnd)
 
     dbuck_p1 = pad_xy(d_buck, "1")
     dbuck_p2 = pad_xy(d_buck, "2")
@@ -1197,6 +1297,9 @@ def build_board():
 
     # 11. Main +24V_BUS Feeder & Copper Pours
     add_route(board, [c1_p1, (c1_p1[0], 13.5), (119.0, 13.5), (119.0, 23.0), (143.0, 23.0), (143.0, rl_top_y)], 2.5, pcbnew.F_Cu, net_24v_bus)
+
+    # Rule #4: Perimeter Ground Stitching Vias (skipping ESP32 antenna keepout)
+    add_perimeter_gnd_stitching(board, net_gnd, skip_boxes=[(8.0 + S, 0.0, 38.0 + S, 10.5)])
 
     # Solid B.Cu GND Plane across entire board
     add_zone(board, net_gnd, pcbnew.B_Cu, [(1.0, 1.0), (BOARD_W - 1.0, 1.0), (BOARD_W - 1.0, BOARD_H - 1.0), (1.0, BOARD_H - 1.0)], priority=0, clearance_mm=0.4)
