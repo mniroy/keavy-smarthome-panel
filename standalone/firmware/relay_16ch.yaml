@@ -1,0 +1,146 @@
+substitutions:
+  device_name: "relay-16ch-24v-lan"
+  friendly_name: "24V 16-CH Relay Driver (LAN)"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  comment: "24V DC 16-Channel LAN ESPHome NPN Relay Driver (MCP23017 + 2x ULN2803G, REV 1.1)"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# Wired LAN / Ethernet (W5500 SPI Controller)
+ethernet:
+  type: W5500
+  clk_pin: GPIO14
+  mosi_pin: GPIO26
+  miso_pin: GPIO25
+  cs_pin: GPIO27
+  interrupt_pin: GPIO33
+  reset_pin: GPIO32
+
+web_server:
+  port: 80
+
+# I2C Bus to MCP23017 16-Bit I/O Expander
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  frequency: 400kHz
+
+mcp23017:
+  - id: mcp23017_hub
+    address: 0x20
+
+# 16 Independent Relay Channels (MCP23017 -> 2x ULN2803G NPN Sinking Output for 24VDC G2R-1-E)
+# Port B (Pins 8..15 in ESPHome = GPB0..GPB7) -> CH1..CH8 (U5)
+# Port A (Pins 0..7  in ESPHome = GPA0..GPA7) -> CH9..CH16 (U6)
+switch:
+  - platform: gpio
+    name: "Relay 1"
+    id: relay_ch1
+    pin: { mcp23xxx: mcp23017_hub, number: 8, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 2"
+    id: relay_ch2
+    pin: { mcp23xxx: mcp23017_hub, number: 9, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 3"
+    id: relay_ch3
+    pin: { mcp23xxx: mcp23017_hub, number: 10, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 4"
+    id: relay_ch4
+    pin: { mcp23xxx: mcp23017_hub, number: 11, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 5"
+    id: relay_ch5
+    pin: { mcp23xxx: mcp23017_hub, number: 12, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 6"
+    id: relay_ch6
+    pin: { mcp23xxx: mcp23017_hub, number: 13, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 7"
+    id: relay_ch7
+    pin: { mcp23xxx: mcp23017_hub, number: 14, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 8"
+    id: relay_ch8
+    pin: { mcp23xxx: mcp23017_hub, number: 15, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 9"
+    id: relay_ch9
+    pin: { mcp23xxx: mcp23017_hub, number: 0, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 10"
+    id: relay_ch10
+    pin: { mcp23xxx: mcp23017_hub, number: 1, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 11"
+    id: relay_ch11
+    pin: { mcp23xxx: mcp23017_hub, number: 2, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 12"
+    id: relay_ch12
+    pin: { mcp23xxx: mcp23017_hub, number: 3, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 13"
+    id: relay_ch13
+    pin: { mcp23xxx: mcp23017_hub, number: 4, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 14"
+    id: relay_ch14
+    pin: { mcp23xxx: mcp23017_hub, number: 5, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 15"
+    id: relay_ch15
+    pin: { mcp23xxx: mcp23017_hub, number: 6, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: gpio
+    name: "Relay 16"
+    id: relay_ch16
+    pin: { mcp23xxx: mcp23017_hub, number: 7, mode: OUTPUT }
+    restore_mode: RESTORE_DEFAULT_OFF

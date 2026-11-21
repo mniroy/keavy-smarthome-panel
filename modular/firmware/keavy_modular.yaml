@@ -1,0 +1,92 @@
+substitutions:
+  device_name: "keavy-modular-plc"
+  friendly_name: "KEAVY Modular PLC (Brain + Relay16 + Dimmer6)"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  comment: "KEAVY Modular DIN-Rail System: KEAVY-BRAIN + KEAVY-RELAY16 (0x20) + KEAVY-DIMMER6 (0x40)"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# Wired LAN / Ethernet on KEAVY-BRAIN (W5500 SPI)
+ethernet:
+  type: W5500
+  clk_pin: GPIO14
+  mosi_pin: GPIO26
+  miso_pin: GPIO25
+  cs_pin: GPIO27
+  interrupt_pin: GPIO33
+  reset_pin: GPIO32
+
+web_server:
+  port: 80
+
+# KEAVY-BUS I2C Backplane (SDA=GPIO21, SCL=GPIO22)
+# 100kHz recommended for maximum EMI immunity inside industrial relay/dimmer panels
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  frequency: 100kHz
+
+# Module 1: KEAVY-RELAY16 (DIP SW1 = OFF-OFF-OFF -> 0x20)
+# To chain a 2nd Relay16 module, set SW1 = ON-OFF-OFF -> address: 0x21
+mcp23017:
+  - id: relay_mod1
+    address: 0x20
+
+# Module 2: KEAVY-DIMMER6 (DIP SW1 = OFF-OFF-OFF -> 0x40)
+# To chain a 2nd Dimmer6 module, set SW1 = ON-OFF-OFF -> address: 0x41
+pca9685:
+  - id: dimmer_mod1
+    address: 0x40
+    frequency: 1526 # Max PCA9685 PWM frequency (flicker-free)
+
+# 6-Channel LED Dimmer Outputs (PCA9685 Channels 0..5)
+output:
+  - { platform: pca9685, pca9685_id: dimmer_mod1, channel: 0, id: dim1_ch1 }
+  - { platform: pca9685, pca9685_id: dimmer_mod1, channel: 1, id: dim1_ch2 }
+  - { platform: pca9685, pca9685_id: dimmer_mod1, channel: 2, id: dim1_ch3 }
+  - { platform: pca9685, pca9685_id: dimmer_mod1, channel: 3, id: dim1_ch4 }
+  - { platform: pca9685, pca9685_id: dimmer_mod1, channel: 4, id: dim1_ch5 }
+  - { platform: pca9685, pca9685_id: dimmer_mod1, channel: 5, id: dim1_ch6 }
+
+light:
+  - { platform: monochromatic, name: "Dimmer 1", output: dim1_ch1, gamma_correct: 2.8, default_transition_length: 600ms, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: monochromatic, name: "Dimmer 2", output: dim1_ch2, gamma_correct: 2.8, default_transition_length: 600ms, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: monochromatic, name: "Dimmer 3", output: dim1_ch3, gamma_correct: 2.8, default_transition_length: 600ms, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: monochromatic, name: "Dimmer 4", output: dim1_ch4, gamma_correct: 2.8, default_transition_length: 600ms, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: monochromatic, name: "Dimmer 5", output: dim1_ch5, gamma_correct: 2.8, default_transition_length: 600ms, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: monochromatic, name: "Dimmer 6", output: dim1_ch6, gamma_correct: 2.8, default_transition_length: 600ms, restore_mode: RESTORE_DEFAULT_OFF }
+
+# 16-Channel NPN Relay Driver Switches (MCP23017 Port B = 8..15 -> CH1..8, Port A = 0..7 -> CH9..16)
+switch:
+  - { platform: gpio, name: "Relay 1",  pin: { mcp23xxx: relay_mod1, number: 8,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 2",  pin: { mcp23xxx: relay_mod1, number: 9,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 3",  pin: { mcp23xxx: relay_mod1, number: 10, mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 4",  pin: { mcp23xxx: relay_mod1, number: 11, mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 5",  pin: { mcp23xxx: relay_mod1, number: 12, mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 6",  pin: { mcp23xxx: relay_mod1, number: 13, mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 7",  pin: { mcp23xxx: relay_mod1, number: 14, mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 8",  pin: { mcp23xxx: relay_mod1, number: 15, mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 9",  pin: { mcp23xxx: relay_mod1, number: 0,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 10", pin: { mcp23xxx: relay_mod1, number: 1,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 11", pin: { mcp23xxx: relay_mod1, number: 2,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 12", pin: { mcp23xxx: relay_mod1, number: 3,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 13", pin: { mcp23xxx: relay_mod1, number: 4,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 14", pin: { mcp23xxx: relay_mod1, number: 5,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 15", pin: { mcp23xxx: relay_mod1, number: 6,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }
+  - { platform: gpio, name: "Relay 16", pin: { mcp23xxx: relay_mod1, number: 7,  mode: OUTPUT }, restore_mode: RESTORE_DEFAULT_OFF }

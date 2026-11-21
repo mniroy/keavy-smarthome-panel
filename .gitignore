@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# KiCad temporary & backup files
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.bak
+*-backups/
+_autosave-*
+*.tmp
+*.lck
+
+# Python virtual environment & cache
+__pycache__/
+*.py[cod]
+*$py.class
