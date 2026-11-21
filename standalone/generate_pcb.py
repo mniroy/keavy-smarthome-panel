@@ -101,7 +101,47 @@ def add_track(board, x1, y1, x2, y2, width_mm, layer, net):
     return t
 
 
-def add_route(board, pts, width_mm, layer, net):
+def chamfer_points(pts, max_r=0.45):
+    """
+    Replaces 90-degree orthogonal corners with 45-degree chamfers (bevels).
+    Follows high-reliability PCB best practices:
+    - Eliminates acid traps at sharp corners during copper etching.
+    - Reduces impedance discontinuity and high-frequency EMI reflection.
+    """
+    if len(pts) <= 2:
+        return pts
+    out = [pts[0]]
+    for i in range(1, len(pts) - 1):
+        p_prev = out[-1]
+        p_curr = pts[i]
+        p_next = pts[i + 1]
+
+        v1 = (p_curr[0] - p_prev[0], p_curr[1] - p_prev[1])
+        v2 = (p_next[0] - p_curr[0], p_next[1] - p_curr[1])
+        l1 = math.hypot(v1[0], v1[1])
+        l2 = math.hypot(v2[0], v2[1])
+        if l1 < 1e-4 or l2 < 1e-4:
+            continue
+
+        dot = v1[0] * v2[0] + v1[1] * v2[1]
+        cos_theta = dot / (l1 * l2)
+        # Orthogonal 90-degree turns have cos_theta ~ 0
+        if abs(cos_theta) < 0.25:
+            r = min(max_r, l1 * 0.35, l2 * 0.35)
+            if r >= 0.08:
+                p1a = (round(p_curr[0] - (v1[0] / l1) * r, 4), round(p_curr[1] - (v1[1] / l1) * r, 4))
+                p1b = (round(p_curr[0] + (v2[0] / l2) * r, 4), round(p_curr[1] + (v2[1] / l2) * r, 4))
+                out.append(p1a)
+                out.append(p1b)
+                continue
+        out.append(p_curr)
+    out.append(pts[-1])
+    return out
+
+
+def add_route(board, pts, width_mm, layer, net, chamfer=True):
+    if chamfer and len(pts) > 2:
+        pts = chamfer_points(pts)
     for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
         add_track(board, x1, y1, x2, y2, width_mm, layer, net)
 
@@ -874,7 +914,7 @@ def build_board():
     add_via(board, gnd_bot[0], gnd_bot[1], net_gnd, dia_mm=0.7, drill_mm=0.35)
     for gpin, (dx, dy) in [("14", (0.0, -1.0)), ("16", (0.0, -1.0)), ("19", (0.0, -1.0)), ("21", (0.0, -1.0)), ("23", (0.0, -1.0))]:
         gp = pad_xy(u3, gpin)
-        add_route(board, [gp, (gp[0] + dx, gp[1] + dy), gnd_bot], 0.22, pcbnew.F_Cu, net_gnd)
+        add_route(board, [gp, (gp[0] + dx, gp[1] + dy), gnd_bot], 0.22, pcbnew.F_Cu, net_gnd, chamfer=False)
 
     p9 = pad_xy(u3, "9")
     add_route(board, [p9, (12.4, p9[1]), (12.4, 39.5)], 0.22, pcbnew.F_Cu, net_gnd)
@@ -1060,10 +1100,12 @@ def build_board():
     # +3V3: U2 Pad 16 (PTH) -> B.Cu at y=46.56 -> via at (110.5, 46.56) -> F.Cu to R_SCL(1), R_SDA(1), U7(18), U7(9), C_IO(1)
     add_route(board, [u2_3v3, (110.5, u2_3v3[1])], 0.4, pcbnew.B_Cu, net_3v3)
     add_via(board, 110.5, u2_3v3[1], net_3v3, dia_mm=0.7, drill_mm=0.35)
-    add_route(board, [(110.5, u2_3v3[1]), (110.5, 48.0), rscl_p1], 0.3, pcbnew.F_Cu, net_3v3)
-    add_route(board, [(110.5, 48.0), rsda_p1], 0.3, pcbnew.F_Cu, net_3v3)
-    add_route(board, [(110.5, u2_3v3[1]), (110.5, 40.945), u7_rst], 0.3, pcbnew.F_Cu, net_3v3)
-    add_route(board, [(110.5, 40.945), (110.5, u7_vdd[1]), u7_vdd, (cio_p1[0], u7_vdd[1]), cio_p1], 0.3, pcbnew.F_Cu, net_3v3)
+    add_track(board, 110.5, u2_3v3[1], 110.5, 48.0, 0.3, pcbnew.F_Cu, net_3v3)
+    add_track(board, 110.5, u2_3v3[1], 110.5, 40.945, 0.3, pcbnew.F_Cu, net_3v3)
+    add_track(board, 110.5, 48.0, rscl_p1[0], rscl_p1[1], 0.3, pcbnew.F_Cu, net_3v3)
+    add_track(board, 110.5, 48.0, rsda_p1[0], rsda_p1[1], 0.3, pcbnew.F_Cu, net_3v3)
+    add_track(board, 110.5, 40.945, u7_rst[0], u7_rst[1], 0.3, pcbnew.F_Cu, net_3v3)
+    add_route(board, [(110.5, 40.945), (110.5, u7_vdd[1]), u7_vdd, (cio_p1[0], u7_vdd[1]), cio_p1], 0.3, pcbnew.F_Cu, net_3v3, chamfer=False)
 
     # U7 GND pins (10 on left, 15/16/17 on right) + C_IO GND
     add_gnd_via_near(board, cio_p2[0], cio_p2[1], -1.8, 0.0, net_gnd)
@@ -1083,10 +1125,10 @@ def build_board():
 
     add_route(board, [u2_sda, (63.1, u2_sda[1]), (63.1, 36.2)], 0.22, pcbnew.F_Cu, net_sda)
     add_via(board, 63.1, 36.2, net_sda, dia_mm=0.65, drill_mm=0.35)
-    add_route(board, [(63.1, 36.2), (63.1, 43.5), (71.0, 43.5), (71.0, 45.4), (104.3, 45.4), (104.3, 43.485)], 0.22, pcbnew.B_Cu, net_sda)
+    add_route(board, [(63.1, 36.2), (63.1, 43.5), (71.0, 43.5), (71.0, 45.4), (104.3, 45.4), (104.3, 43.485)], 0.22, pcbnew.B_Cu, net_sda, chamfer=False)
     add_via(board, 104.3, 43.485, net_sda, dia_mm=0.60, drill_mm=0.30)
     add_track(board, 104.3, 43.485, u7_sda[0], u7_sda[1], 0.22, pcbnew.F_Cu, net_sda)
-    add_route(board, [(104.3, 45.4), (114.41, 45.4), (114.41, 49.8)], 0.22, pcbnew.B_Cu, net_sda)
+    add_route(board, [(104.3, 45.4), (114.41, 45.4), (114.41, 49.8)], 0.22, pcbnew.B_Cu, net_sda, chamfer=False)
     add_via(board, 114.41, 49.8, net_sda, dia_mm=0.60, drill_mm=0.30)
     add_track(board, 114.41, 49.8, rsda_p2[0], rsda_p2[1], 0.22, pcbnew.F_Cu, net_sda)
 

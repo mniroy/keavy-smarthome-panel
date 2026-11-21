@@ -90,7 +90,47 @@ def add_track(board, x1, y1, x2, y2, width_mm, layer, net):
     return t
 
 
-def add_route(board, pts, width_mm, layer, net):
+def chamfer_points(pts, max_r=0.45):
+    """
+    Replaces 90-degree orthogonal corners with 45-degree chamfers (bevels).
+    Follows high-reliability PCB best practices:
+    - Eliminates acid traps at sharp corners during copper etching.
+    - Reduces impedance discontinuity and high-frequency EMI reflection.
+    """
+    if len(pts) <= 2:
+        return pts
+    out = [pts[0]]
+    for i in range(1, len(pts) - 1):
+        p_prev = out[-1]
+        p_curr = pts[i]
+        p_next = pts[i + 1]
+
+        v1 = (p_curr[0] - p_prev[0], p_curr[1] - p_prev[1])
+        v2 = (p_next[0] - p_curr[0], p_next[1] - p_curr[1])
+        l1 = math.hypot(v1[0], v1[1])
+        l2 = math.hypot(v2[0], v2[1])
+        if l1 < 1e-4 or l2 < 1e-4:
+            continue
+
+        dot = v1[0] * v2[0] + v1[1] * v2[1]
+        cos_theta = dot / (l1 * l2)
+        # Orthogonal 90-degree turns have cos_theta ~ 0
+        if abs(cos_theta) < 0.25:
+            r = min(max_r, l1 * 0.35, l2 * 0.35)
+            if r >= 0.08:
+                p1a = (round(p_curr[0] - (v1[0] / l1) * r, 4), round(p_curr[1] - (v1[1] / l1) * r, 4))
+                p1b = (round(p_curr[0] + (v2[0] / l2) * r, 4), round(p_curr[1] + (v2[1] / l2) * r, 4))
+                out.append(p1a)
+                out.append(p1b)
+                continue
+        out.append(p_curr)
+    out.append(pts[-1])
+    return out
+
+
+def add_route(board, pts, width_mm, layer, net, chamfer=True):
+    if chamfer and len(pts) > 2:
+        pts = chamfer_points(pts)
     for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
         add_track(board, x1, y1, x2, y2, width_mm, layer, net)
 

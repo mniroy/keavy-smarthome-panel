@@ -263,7 +263,7 @@ def build_board():
         gp = pad_xy(u3, gpin); add_route(board, [gp, (gp[0] + dx, gp[1] + dy), gnd_tl], 0.22, pcbnew.F_Cu, net_gnd)
     gnd_bot = (17.5, 41.1); add_via(board, gnd_bot[0], gnd_bot[1], net_gnd, dia_mm=0.7, drill_mm=0.35)
     for gpin, (dx, dy) in [("14", (0.0, -1.0)), ("16", (0.0, -1.0)), ("19", (0.0, -1.0)), ("21", (0.0, -1.0)), ("23", (0.0, -1.0))]:
-        gp = pad_xy(u3, gpin); add_route(board, [gp, (gp[0] + dx, gp[1] + dy), gnd_bot], 0.22, pcbnew.F_Cu, net_gnd)
+        gp = pad_xy(u3, gpin); add_route(board, [gp, (gp[0] + dx, gp[1] + dy), gnd_bot], 0.22, pcbnew.F_Cu, net_gnd, chamfer=False)
     p9, p29 = pad_xy(u3, "9"), pad_xy(u3, "29")
     add_route(board, [p9, (12.4, p9[1]), (12.4, 39.5)], 0.22, pcbnew.F_Cu, net_gnd); add_via(board, 12.4, 39.5, net_gnd, dia_mm=0.6, drill_mm=0.3)
     add_route(board, [p29, (20.4, p29[1]), (20.4, 37.5)], 0.22, pcbnew.F_Cu, net_gnd); add_via(board, 20.4, 37.5, net_gnd, dia_mm=0.6, drill_mm=0.3)

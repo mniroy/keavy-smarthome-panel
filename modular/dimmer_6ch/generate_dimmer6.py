@@ -217,11 +217,12 @@ def build_board():
     add_route(board, [ul_tab, (iso_p[7][0], ul_tab[1]), iso_p[7]], 0.3, pcbnew.F_Cu, net_3v3_iso)
     # Connect +3V3_ISO from ul_tab via B.Cu (at y=25.3, below Bus Trunk & above ISO_SCL!) to R_ISCL(1)/R_ISDA(1) -> C_PWM(1) & SW1
     add_via(board, riscl_p1[0], 25.3, net_3v3_iso, dia_mm=0.60, drill_mm=0.30)
-    add_route(board, [risda_p1, riscl_p1, (riscl_p1[0], 25.3)], 0.25, pcbnew.F_Cu, net_3v3_iso)
+    add_track(board, risda_p1[0], risda_p1[1], riscl_p1[0], riscl_p1[1], 0.25, pcbnew.F_Cu, net_3v3_iso)
+    add_track(board, riscl_p1[0], riscl_p1[1], riscl_p1[0], 25.3, 0.25, pcbnew.F_Cu, net_3v3_iso)
     add_via(board, ul_tab[0], 25.3, net_3v3_iso, dia_mm=0.60, drill_mm=0.30)
     add_track(board, ul_tab[0], ul_tab[1], ul_tab[0], 25.3, 0.3, pcbnew.F_Cu, net_3v3_iso)
     add_route(board, [(ul_tab[0], 25.3), (riscl_p1[0], 25.3)], 0.25, pcbnew.B_Cu, net_3v3_iso)
-    add_route(board, [riscl_p1, (riscl_p1[0], 22.8), (cpwm_p1[0], 22.8), cpwm_p1], 0.25, pcbnew.F_Cu, net_3v3_iso)
+    add_route(board, [riscl_p1, (riscl_p1[0], 22.8), (cpwm_p1[0], 22.8), cpwm_p1], 0.25, pcbnew.F_Cu, net_3v3_iso, chamfer=False)
     add_route(board, [cpwm_p1, (cpwm_p1[0], u1_vdd[1]), u1_vdd], 0.25, pcbnew.F_Cu, net_3v3_iso)
     add_gnd_via_near(board, cpwm_p2[0], cpwm_p2[1], -1.6, 0.0, net_gnd_iso)
 
@@ -230,8 +231,8 @@ def build_board():
     add_route(board, [(cpwm_p1[0], 22.8), (sw_p1[0], 22.8), sw_p1], 0.3, pcbnew.F_Cu, net_3v3_iso)
 
     # ISO_SDA (outer right x=53.3 -> y=23.4) & ISO_SCL (B.Cu under ISO_SDA -> left x=52.4 -> y=24.0): ZERO crossings!
-    add_route(board, [iso_p[6], (iso_p[6][0], 33.1), (53.3, 33.1), (53.3, risda_p2[1]), risda_p2], 0.20, pcbnew.F_Cu, net_sda_iso)
-    add_route(board, [(53.3, risda_p2[1]), (53.3, 23.4), (u1_sda[0], 23.4), u1_sda], 0.20, pcbnew.F_Cu, net_sda_iso)
+    add_route(board, [iso_p[6], (iso_p[6][0], 33.1), (53.3, 33.1), (53.3, 23.4), (u1_sda[0], 23.4), u1_sda], 0.20, pcbnew.F_Cu, net_sda_iso)
+    add_track(board, 53.3, risda_p2[1], risda_p2[0], risda_p2[1], 0.20, pcbnew.F_Cu, net_sda_iso)
     add_route(board, [iso_p[5], (iso_p[5][0], 32.1)], 0.20, pcbnew.F_Cu, net_scl_iso)
     add_via(board, iso_p[5][0], 32.1, net_scl_iso, dia_mm=0.60, drill_mm=0.30)
     add_route(board, [(iso_p[5][0], 32.1), (54.55, 32.1), (54.55, 25.5)], 0.20, pcbnew.B_Cu, net_scl_iso)
