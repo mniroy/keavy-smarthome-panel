@@ -39,6 +39,7 @@ A modular, side-by-side chainable **DIN-Rail Smart Automation Ecosystem** built 
 | **KEAVY-BRAIN** | `120.0 × 72.0 mm` | **SZOMK AK-P-08** (`145×90×40mm`) & **UM72** | ESP32 DevKit + W5500 LAN + RJ45 + 24V→5V Buck (`XL1509-5.0`) + Dedicated `U5_BUS` 3.3V + Dual `500mA PTC` + `USBLC6-2SC6` ESD | 1 Brain per bus (1 Ethernet cable) |
 | **KEAVY-RELAY16** | `96.0 × 72.0 mm` | **SZOMK AK-P-01** (`115×90×40mm`) & **UM72** | **2500Vrms Isolated** 16-CH 24VDC NPN Relay Driver (`B0505S-1W` + `ADuM1250ARZ` + `MCP23017` + `2× ULN2803G`) for Omron G2R-1-E | 3-bit DIP `SW1`: `0x20`–`0x27` (up to **8 boards = 128 relays**) |
 | **KEAVY-DIMMER6** | `96.0 × 72.0 mm` | **SZOMK AK-P-01** (`115×90×40mm`) & **UM72** | **2500Vrms Isolated** 6-CH 60W/CH LED Dimmer (`B0505S-1W` + `ADuM1250ARZ` + `PCA9685PW` 1.526kHz + `6× AOD4184A`, 15A fuse) | 3-bit DIP `SW1`: `0x40`–`0x47` (up to **8 boards = 48 dimmers**) |
+| **KEAVY-INPUT12A4** | `120.0 × 72.0 mm` | **SZOMK AK-P-08** (`145×90×40mm`) & **UM72** | **2500Vrms Isolated** 12-CH DI (3× `TLP281-4` optocouplers) + 4-CH Industrial AI (`ADS1115` 16-bit ADC, 0–10V / 4–20mA selectable) + `ADuM1250ARZ` + `B0505S-1W` | `MCP23017` DIP `0x20`–`0x27`, `ADS1115` ADDR Pin `0x48`–`0x4B` |
 
 ### Standardized 10-Pin `KEAVY-BUS` REV 2.0 (`DC3-10P` Shrouded Keyed IDC Header)
 
